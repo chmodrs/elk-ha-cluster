@@ -1,0 +1,115 @@
+version: "3.3"
+
+services:
+
+  elasticsearch:
+    command: elasticsearch -Enetwork.host=0.0.0.0 -Ediscovery.zen.ping.unicast.hosts=elasticsearch,elasticsearch2
+    environment:
+      - node.name=es01
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=false
+      - "ES_JAVA_OPTS=-Xms3g -Xmx3g"
+    image: {{yourelasticrepositoryimage:tag}}
+    volumes:
+      - "/mnt/es1:/usr/share/elasticsearch/data"
+      - "/opt/elk-swarm-cluster/elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml"
+    networks:
+      - elk
+    ports:
+      - "9200:9200"
+    deploy:
+      mode: replicated
+      replicas: 1
+      #endpoint_mode: dnsrr
+      placement:
+        constraints: [node.hostname == worker2500]
+  
+  elasticsearch2:
+    command: elasticsearch -Enetwork.host=0.0.0.0 -Ediscovery.zen.ping.unicast.hosts=elasticsearch,elasticsearch2
+    environment:
+      - node.name=es02
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=false
+      - "ES_JAVA_OPTS=-Xms3g -Xmx3g"
+    image: {{yourelasicrepositoryimage:tag}}
+    volumes:
+      - "/mnt/es2:/usr/share/elasticsearch/data"
+      - "/opt/elk-swarm-cluster/elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml"
+    networks:
+      - elk
+    ports:
+      - "9201:9200"
+    deploy:
+      mode: replicated
+      replicas: 1
+      #endpoint_mode: dnsrr
+      placement:
+        constraints: [node.hostname == worker8818]
+
+  
+  kibana:
+    image: docker.elastic.co/kibana/kibana:6.6.0
+    volumes:
+      - "/opt/elk-swarm-cluster/kibana/config:/usr/share/kibana/config"
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    networks:
+      - elk
+      - traefik
+    deploy:
+      mode: replicated
+      labels:
+       - traefik.frontend.rule=Host:elk.mydomain.com
+       - traefik.docker.network=traefik
+       - traefik.port=5601
+       - traefik.frontend.auth.basic={{USER}}:{{HTPASSWD_ENCODED_PASSWORD}}
+       - traefik.enable=true
+      replicas: 1
+      placement:
+        constraints: [node.role == worker]
+  
+  logstash:
+    command: logstash -f /usr/share/logstash/pipeline/logstash.conf
+    image: docker.elastic.co/logstash/logstash:6.6.0
+    volumes:
+        - "/opt/elk-swarm-cluster/logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml"
+        - "/opt/elk-swarm-cluster/logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf"
+        - "/mnt/queue1:/usr/share/logstash/data/queue"
+        - "/opt/elk-swarm-cluster/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
+    ports:
+        - "5000:5000"
+    networks:
+      - elk
+    deploy:
+      #mode: global
+      replicas: 1
+      placement:
+        constraints: [node.hostname == worker2500]
+
+  logstash2:
+   command: logstash -f /usr/share/logstash/pipeline/logstash.conf
+   image: docker.elastic.co/logstash/logstash:6.6.0
+   volumes:
+        - "/opt/elk-swarm-cluster/logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml"
+        - "/opt/elk-swarm-cluster/logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf"
+        - "/opt/elk-swarm-cluster/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
+        - "/mnt/queue2:/usr/share/logstash/data/queue"
+   ports:
+        - "5001:5000"
+   networks:
+      - elk
+   deploy:
+      #mode: global
+      replicas: 1
+      placement:
+        constraints: [node.hostname == worker8818]
+
+networks:
+  elk:
+    driver: overlay
+    external: true
+  traefik:
+    driver: overlay
+    external: true

@@ -1,0 +1,5 @@
+http.host: "0.0.0.0"
+xpack.monitoring.elasticsearch.url: http://elasticsearch
+queue.type: persisted
+path.queue: "/usr/share/logstash/data/queue"
+queue.max_bytes: 3gb
